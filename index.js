@@ -5,6 +5,7 @@ const express = require('express');
 const http = require('http');
 const uuid = require('uuid');
 const WebSocket = require('ws');
+const subscribes = require('./lib/subscribes');
 
 
 const app = express();
@@ -113,12 +114,15 @@ wss.on('connection', function (ws, request) {
       ws.isAlive = true;
       ws['isBrowser'] = true
     }
+    subscribes(wss,ws,message)
     console.log(`Received message ${message} from user ${userId}`);
   });
 
   ws.on('close', function () {
     map.delete(userId);
   });
+
+
 
 });
 
