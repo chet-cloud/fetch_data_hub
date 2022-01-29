@@ -10,12 +10,6 @@
             messages.scrollTop = messages.scrollHeight;
         }
 
-        function handleResponse(response) {
-            return response.ok
-                ? response.json().then((data) => JSON.stringify(data, null, 2))
-                : Promise.reject(new Error('Unexpected response'));
-        }
-
         function NewWebsocket() {
             const onMessages = [],
                 onOpens = [],
@@ -67,24 +61,19 @@
             };
         }
 
-        fetch('/login', {method: 'POST', credentials: 'same-origin'})
-            .then(handleResponse)
-            // .then(showMessage)
-            .then(() => {
-                const ws = NewWebsocket()
-                ws.addListener('message', function (d) {
-                    showMessage(d)
-                })
-                ws.addListener("open",()=>{
-                    showMessage('WebSocket connection established');
-                })
-                ws.addListener("close",()=>{
-                    showMessage('WebSocket connection closed');
-                })
-            })
-            .catch(function (err) {
-                showMessage(err.message);
-            });
+        const ws = NewWebsocket()
+
+        ws.addListener('message', function (d) {
+            showMessage(d)
+        })
+
+        ws.addListener("open",()=>{
+            showMessage('WebSocket connection established');
+        })
+
+        ws.addListener("close",()=>{
+            showMessage('WebSocket connection closed');
+        })
 
     </script>
 </head>

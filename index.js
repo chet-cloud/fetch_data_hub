@@ -1,128 +1,57 @@
 'use strict';
 
-const session = require('express-session');
 const express = require('express');
-const http = require('http');
-const uuid = require('uuid');
-const WebSocket = require('ws');
+const path = require('path');
+const { createServer } = require('http');
 const subscribes = require('./lib/subscribes');
+const WebSocket = require('ws')
 
 
 const app = express();
-const map = new Map();
-
-//
-// We need the same instance of the session parser in express and
-// WebSocket server.
-//
-const sessionParser = session({
-  saveUninitialized: false,
-  secret: '$eCuRiTy',
-  resave: false
-});
-
-//
-// Serve static files from the 'public' folder.
-//
-app.use(express.static('public'));
-app.use(sessionParser);
-
-app.post('/login', function (req, res) {
-  //
-  // "Log in" user and set userId to session.
-  //
-  const id = uuid.v4();
-
-  console.log(`Updating session for user ${id}`);
-  req.session.userId = id;
-  res.send({ result: 'OK', message: 'Session updated' });
-});
-
-app.delete('/logout', function (request, response) {
-  const ws = map.get(request.session.userId);
-
-  console.log('Destroying session');
-  request.session.destroy(function () {
-    if (ws) ws.close();
-
-    response.send({ result: 'OK', message: 'Session destroyed' });
-  });
-});
-
-//
-// Create an HTTP server.
-//
-const server = http.createServer(app);
-
-//
-// Create a WebSocket server completely detached from the HTTP server.
-//
-const wss = new WebSocket.Server({ clientTracking: true, noServer: true });
-
-server.on('upgrade', function (request, socket, head) {
-  console.log('Parsing session from request...');
-
-  sessionParser(request, {}, () => {
-    if (!request.session.userId) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-
-    console.log('Session is parsed!');
-
-    wss.handleUpgrade(request, socket, head, function (ws) {
-      wss.emit('connection', ws, request);
-    });
-  });
-});
+app.use(express.static(path.join(__dirname, '/public')));
+const server = createServer(app);
+const wss = new WebSocket.Server({server: server, clientTracking: true, noServer: false});
 
 
 const interval = setInterval(function ping() {
-  wss.clients.forEach(function each(ws) {
-    if (ws.isAlive === false){
-      return ws.terminate();
-    }
-    ws.isAlive = false;
-    if(ws['isBrowser']){
-      ws.send("ping")
-    }else{
-      ws.ping();
-    }
-  });
+    wss.clients.forEach(function each(ws) {
+        if (ws.isAlive === false) {
+            return ws.terminate();
+        }
+        ws.isAlive = false;
+        if (ws['isBrowser']) {
+            ws.send("ping")
+        } else {
+            ws.ping();
+        }
+    });
 }, 30000);
 
 wss.on('close', function close() {
-  clearInterval(interval);
+    clearInterval(interval);
 });
 
 
 wss.on('connection', function (ws, request) {
-  ws.isAlive = true;
-  ws.on('pong', ()=>{
     ws.isAlive = true;
-  });
+    ws.on('pong', () => {
+        ws.isAlive = true;
+    });
 
-  const userId = request.session.userId;
+    ws.send("->: Hi")
 
-  map.set(userId, ws);
+    ws.on('message', function (message) {
+        if (message === "pong") {
+            ws.isAlive = true;
+            ws['isBrowser'] = true
+        }
+        subscribes(wss, ws, message)
+        console.log(`Received message ${message} `);
+    });
 
-  ws.send("->: Hi")
-
-  ws.on('message', function (message) {
-    if(message === "pong"){
-      ws.isAlive = true;
-      ws['isBrowser'] = true
-    }
-    subscribes(wss,ws,message)
-    console.log(`Received message ${message} from user ${userId}`);
-  });
-
-  ws.on('close', function () {
-    map.delete(userId);
-  });
-
-
+    ws.on('close', function () {
+        console.log(`close ${ws}`);
+    });
 
 });
 
@@ -130,5 +59,5 @@ wss.on('connection', function (ws, request) {
 // Start the server.
 //
 server.listen(8080, function () {
-  console.log('Listening on http://localhost:8080');
+    console.log('Listening on http://localhost:8080');
 });
