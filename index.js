@@ -7,7 +7,11 @@ const { createServer } = require('http');
 const app = express();
 app.use(express.static(path.join(__dirname, '/public')));
 const server = createServer(app);
+
 require('./lib/websocket')(server)
+
+require('./lib/jobs')()
+
 
 server.listen(8080, function () {
     console.log('Listening on http://localhost:8080');
